@@ -1,0 +1,14 @@
+{
+  "name": "glyphhunt-site",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "data": "python3 ../scripts/build_site_data.py",
+    "build": "astro build",
+    "dev": "astro dev",
+    "deploy": "wrangler pages deploy dist --project-name glyphhunt"
+  },
+  "dependencies": {
+    "astro": "^5.6.1"
+  }
+}

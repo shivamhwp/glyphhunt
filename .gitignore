@@ -26,3 +26,9 @@ ground_truth.json
 verification/
 .secret_seed
 results/*.jsonl
+
+# Astro site build artifacts
+site/node_modules/
+site/dist/
+site/.astro/
+site/src/data/results.json
