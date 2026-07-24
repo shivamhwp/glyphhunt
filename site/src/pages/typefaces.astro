@@ -1,0 +1,115 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/results.json';
+import glyphs from '../data/glyphs.json';
+import { bar } from '../lib/fmt';
+
+const { typefaces, meta } = data as any;
+const g = glyphs as any;
+
+// Before any run lands there is nothing to rank, but the faces themselves are
+// still worth showing -- fall back to the assignment in glyph order.
+const rows =
+  typefaces.length > 0
+    ? typefaces
+    : Object.keys(g)
+        .map(Number)
+        .sort((a, b) => a - b)
+        .map((i) => ({ index: i, char: g[i].char, font: g[i].font, ok: 0, total: 0, pct: null }));
+---
+
+<Base
+  title="typefaces"
+  path="/typefaces/"
+  lede="One face per letter position, so the three o's and two e's look nothing alike. Every glyph below is rendered from the actual font file used to build the video."
+>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">the target</div>
+        <div class="panel-sub">
+          {meta.target} — 17 letters, 17 typefaces, in temporal order
+        </div>
+      </div>
+    </div>
+    <div class="wordstrip">
+      {Object.keys(g).map(Number).sort((a, b) => a - b).map((i) => (
+        <div class="cell">
+          <span
+            class="glyph glyph-lg"
+            style={`-webkit-mask-image:url(${g[i].data});mask-image:url(${g[i].data});width:${(54 * g[i].aspect).toFixed(1)}px`}
+            role="img"
+            aria-label={g[i].char}
+          />
+          <div class="face">{g[i].font}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">hardest typefaces</div>
+        <div class="panel-sub">
+          share of scored runs that read each glyph position correctly, hardest
+          first. caps-only faces (Herculanum, Copperplate, Phosphate) render
+          lowercase as small caps — that inconsistency is part of the difficulty.
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input class="search" data-search="tf" type="search" placeholder="filter typefaces…" />
+      <span class="count" data-count="tf"></span>
+    </div>
+
+    <div class="scroll" data-table="tf">
+      <table>
+        <thead>
+          <tr>
+            <th class="num" data-sort="num">pos</th>
+            <th>glyph</th>
+            <th data-sort="str">typeface</th>
+            <th data-sort="str">letter</th>
+            <th>read correctly</th>
+            <th class="num" data-sort="num">%</th>
+            <th class="num" data-sort="num">ok/total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t: any) => {
+            const gl = g[t.index];
+            const b = t.pct === null ? null : bar(t.pct / 100, 18);
+            return (
+              <tr>
+                <td class="num rank">{t.index}</td>
+                <td>
+                  {gl && (
+                    <span
+                      class="glyph glyph-sm"
+                      style={`-webkit-mask-image:url(${gl.data});mask-image:url(${gl.data});width:${(26 * gl.aspect).toFixed(1)}px`}
+                      role="img"
+                      aria-label={t.char}
+                    />
+                  )}
+                </td>
+                <td>{t.font}</td>
+                <td class="mono">{t.char}</td>
+                <td data-v={t.pct ?? -1}>
+                  {b ? (
+                    <span class="bar"><span class={b.cls}>{b.on}</span><span class="off">{b.off}</span></span>
+                  ) : (
+                    <span class="badge mute">no runs yet</span>
+                  )}
+                </td>
+                <td class="num">{t.pct === null ? '—' : `${t.pct}%`}</td>
+                <td class="num">{t.total ? `${t.ok}/${t.total}` : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</Base>

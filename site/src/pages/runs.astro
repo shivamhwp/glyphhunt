@@ -1,0 +1,82 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/results.json';
+import { runBadge } from '../lib/fmt';
+
+const { runs, meta } = data as any;
+---
+
+<Base
+  title="runs"
+  path="/runs/"
+  lede="One row per attempt, including invalidated ones. Sort any column, filter by model, level, mode or answer."
+>
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title">every run</div>
+        <div class="panel-sub">
+          the answer column shows what the model actually reported, normalised to
+          lowercase letters. an invalidated run left its working directory and is
+          excluded from every aggregate on this site.
+        </div>
+      </div>
+      <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>
+        {meta.cheated > 0 ? `✗ ${meta.cheated} invalidated` : '✓ 0 invalidated'}
+      </span>
+    </div>
+
+    <div class="toolbar">
+      <input class="search" data-search="rn" type="search" placeholder="filter runs… (try: opus, L3, blind)" />
+      <span class="count" data-count="rn"></span>
+    </div>
+
+    {runs.length === 0 ? (
+      <p class="note">No runs recorded yet.</p>
+    ) : (
+      <div class="scroll" data-table="rn">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="str">model</th>
+              <th data-sort="str">lvl</th>
+              <th data-sort="str">mode</th>
+              <th class="num" data-sort="num">trial</th>
+              <th data-sort="str">outcome</th>
+              <th data-sort="str">answer</th>
+              <th class="num" data-sort="num">chars</th>
+              <th class="num" data-sort="num">frames</th>
+              <th class="num" data-sort="num">spatial</th>
+              <th class="num" data-sort="num">time</th>
+              <th class="num" data-sort="num">shell</th>
+              <th class="num" data-sort="num">imgs</th>
+              <th data-sort="str">diffed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((r: any) => {
+              const b = runBadge(r);
+              return (
+                <tr>
+                  <td class="model">{r.model}</td>
+                  <td class="mono">L{r.level}</td>
+                  <td class="mono">{r.mode.toLowerCase()}</td>
+                  <td class="num rank">{r.trial}</td>
+                  <td data-v={b.text}><span class={`badge ${b.cls}`}>{b.text}</span></td>
+                  <td class="mono">{r.answer || '—'}</td>
+                  <td class="num">{r.chars}</td>
+                  <td class="num">{r.frames}</td>
+                  <td class="num">{r.spatial}</td>
+                  <td class="num">{r.wall_s}s</td>
+                  <td class="num">{r.shell}</td>
+                  <td class="num">{r.images}</td>
+                  <td class="mono">{r.diffed ? 'yes' : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </section>
+</Base>

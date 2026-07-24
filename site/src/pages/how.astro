@@ -1,0 +1,131 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/results.json';
+
+const { meta, levels } = data as any;
+---
+
+<Base
+  title="how it works"
+  path="/how/"
+  lede="A word is cut into 17 letters, each drawn in a different typeface and planted at a different moment in 30 seconds of fast-cut video. Models get a file path and a shell."
+>
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">the task</div></div>
+    <p class="note">
+      The word <strong>{meta.target}</strong> is split into 17 letters. Each is
+      drawn in a different typeface and planted at a different moment in a
+      30-second 1080p60 montage cut from @t3dotgg's uploads at 6× speed, with
+      roughly 0.3s shots. Reading the letters in temporal order spells the word.
+    </p>
+    <p class="note">
+      Models receive a path to <code>clip.mp4</code> and a shell. Nothing is
+      pre-extracted and no tools are supplied — deciding how to look at a video
+      is part of the test. They must report the word <em>and</em> the frame and
+      pixel position of every glyph, so reading and localising are scored apart.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">the three levels</div></div>
+    {levels.map((l: any) => (
+      <>
+        <p class="note"><strong>{l.short} — {l.name}.</strong> {l.detail}</p>
+        <div class="hr"></div>
+      </>
+    ))}
+    <p class="note">
+      They test different abilities, so scores are not comparable across levels.
+      L1 asks whether a model can read stylised type competing with the dense
+      real text in the footage. L2 asks whether it can assemble a sequence that
+      exists only across time. L3 asks whether it can find something it cannot
+      see at all.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">why L3 is hard but not impossible</div></div>
+    <p class="note">
+      L3 defeats every obvious strategy. Sampling at 1–2 fps misses a
+      single-frame flash about 97% of the time. Looking at the frame fails
+      because the glyph survives encoding at roughly 6/255 contrast and is
+      invisible to the eye. Naive frame differencing drowns, since 6× speed with
+      0.3s cuts already makes consecutive frames differ enormously. Plain OCR
+      finds the footage's own text instead.
+    </p>
+    <p class="note">
+      It stays solvable because glyphs sit mid-shot, never on a cut, in patches
+      chosen for <strong>high spatial variance but low temporal motion</strong> —
+      busy enough to hide in, still enough that local windowed differencing
+      recovers them. An earlier version scored patches on spatial variance
+      alone, which is the obvious reading of "adversarial" and put every glyph in
+      the highest-motion region of its frame. Measured that way only 5 of 17 were
+      recoverable by any technique; the motion-aware version restored it to
+      16–17 of 17 at local SNR 2.75–10.5.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">surviving the encoder</div></div>
+    <p class="note">
+      An 8/255 luma bump on one frame is exactly what H.264 discards. The
+      generator forces a keyframe on every glyph-bearing frame, encodes at CRF
+      12, then decodes its own output back and diffs it against an
+      identically-encoded glyph-free reference, measuring recovered contrast over
+      each glyph's own ink pixels. Any glyph below the detection floor raises the
+      delta and the level re-renders. Without that loop L3 would be unsolvable
+      for reasons having nothing to do with model capability.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">integrity</div>
+      <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>
+        {meta.cheated > 0 ? `✗ ${meta.cheated} invalidated` : '✓ 0 invalidated'}
+      </span>
+    </div>
+    <p class="note">
+      The first grid was thrown away. Run directories sat inside the project, so
+      agents walked <code>../../..</code>, found the generator, read its source
+      and re-ran it with the recorded seed to reproduce exact glyph coordinates.
+      One scored a flawless blind L3 — the hardest cell — without analysing a
+      single frame. Three of the first seven runs did this.
+    </p>
+    <p class="note">Four defences now apply, since any one alone is bypassable:</p>
+    <p class="note">
+      <strong>Distance.</strong> Runs execute in <code>/private/tmp/vidtask</code>,
+      outside the project, containing nothing but <code>clip.mp4</code>.<br />
+      <strong>Rule.</strong> Both prompts forbid reading anything outside the
+      working directory, so leaving it is a stated violation.<br />
+      <strong>Detection.</strong> Every shell command is scanned for markers that
+      can only come from the project tree; a hit zeroes the score and marks the
+      run <span class="badge fail">✗ INVALID</span>. The markers are deliberately
+      narrow — matching bare filenames would flag honest runs that write scratch
+      scripts, and matching the target word would flag every correct answer.<br />
+      <strong>Secret seed.</strong> The generator is deterministic, so the seed
+      and answer key are withheld until the grid completes and pinned in advance
+      by SHA-256.
+    </p>
+    {meta.seed_committed && (
+      <p class="note">commitment: <code style="word-break:break-all">{meta.seed_committed}</code></p>
+    )}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">caveats</div></div>
+    <p class="note">
+      Both harnesses load their own global instruction files, which is a real
+      confound: their contents are part of each model's context and are not held
+      constant between them. One specific hazard is closed explicitly — both
+      prompts forbid delegating to another model or CLI, because a global
+      instruction like "use codex for subagents" would otherwise let a Claude run
+      be partly executed by a GPT model.
+    </p>
+    <p class="note">
+      Absolute numbers are only comparable within a single generated set: the
+      footage is not redistributed, and a rebuild pulls fresh YouTube encodes.
+      Latency is only meaningful from the sequential pass.
+    </p>
+  </section>
+</Base>

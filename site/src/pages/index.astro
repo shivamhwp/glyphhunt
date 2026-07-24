@@ -1,536 +1,221 @@
 ---
-import '../styles.css';
+import Base from '../layouts/Base.astro';
 import data from '../data/results.json';
+import glyphs from '../data/glyphs.json';
+import { bar, pct, verdict, money, secs } from '../lib/fmt';
 
-const { meta, leaderboard, by_level, by_mode, typefaces, runs, levels, overall } = data as any;
-
-const pct = (n: number, d: number) => (d > 0 ? n / d : 0);
-
-function bar(frac: number, width = 14) {
-  const on = Math.round(Math.max(0, Math.min(1, frac)) * width);
-  const cls = frac >= 0.85 ? 'on' : frac >= 0.5 ? 'on mid' : 'on low';
-  return { on, off: width - on, cls };
-}
-
-function verdict(a: any) {
-  if (!a || a.valid === 0) return { cls: 'mute', text: '— NO DATA' };
-  const f = pct(a.exact, a.valid);
-  if (f >= 0.999) return { cls: 'pass', text: '✓ SOLVED' };
-  if (f > 0) return { cls: 'warn', text: '~ PARTIAL' };
-  if (a.chars > 0) return { cls: 'warn', text: '~ PARTIAL' };
-  return { cls: 'fail', text: '✗ UNSOLVED' };
-}
-
-const lvlMeta = Object.fromEntries(levels.map((l: any) => [String(l.level), l]));
-const done = meta.total_runs;
-const planned = meta.planned_runs;
+const { meta, leaderboard, overall, by_level, by_mode } = data as any;
+const g = glyphs as any;
+const order = Object.keys(g).map(Number).sort((a, b) => a - b);
+const levelKeys = Object.keys(by_level).sort();
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>glyphhunt bench</title>
-    <meta
-      name="description"
-      content="Can an agentic model find a word hidden across 30 seconds of video? 17 letters, 17 typefaces, 1800 frames."
-    />
-    <script is:inline>
-      // Applied before paint so the page never flashes the wrong theme.
-      const saved = localStorage.getItem('gh-theme');
-      if (saved) document.documentElement.setAttribute('data-theme', saved);
-    </script>
-  </head>
-  <body>
-    <div class="wrap">
-      <header>
-        <a class="brand" href="/">glyphhunt bench</a>
-        <nav>
-          <a class="active" href="#results">results</a>
-          <a href="#levels">levels</a>
-          <a href="#typefaces">typefaces</a>
-          <a href="#how">how</a>
-          <a class="plain" href="https://github.com/shivamhwp/glyphhunt">source</a>
-          <button id="theme">light</button>
-        </nav>
-      </header>
-
-      <!-- ================= summary ================= -->
-      <section class="panel" id="results">
-        <div class="summary">
-          <span class={`badge big ${meta.complete ? 'pass' : 'info'}`}>
-            {meta.complete ? '✓ COMPLETE' : '● RUNNING'}
+<Base
+  title="leaderboard"
+  path="/"
+  lede="Every model, every metric, in one table. Sort any column, filter by name. Runs that left their working directory are shown but never scored."
+>
+  <!-- ---------- summary ---------- -->
+  <section class="panel">
+    <div class="summary">
+      <span class={`badge big ${meta.complete ? 'pass' : 'info'}`}>
+        {meta.complete ? '✓ COMPLETE' : '● RUNNING'}
+      </span>
+      <div class="summary-main">
+        <div class="summary-date">{meta.generated}</div>
+        <div class="metaline">
+          {meta.machine} · {meta.video.res} · {meta.video.fps}fps · {meta.video.frames} frames ·
+          {meta.video.glyphs} glyphs in {meta.video.typefaces} typefaces
+        </div>
+        <div class="badgerow">
+          <span class="badge info">{meta.total_runs}/{meta.planned_runs} runs</span>
+          <span class="badge mute">{meta.models} {meta.models === 1 ? 'model' : 'models'}</span>
+          <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>
+            {meta.cheated > 0 ? `✗ ${meta.cheated} invalidated` : '✓ 0 invalidated'}
           </span>
-          <div class="summary-main">
-            <div class="summary-date">{meta.generated}</div>
-            <div class="metaline">
-              {meta.machine} · {meta.video.res} · {meta.video.fps}fps ·
-              {meta.video.frames} frames · {meta.video.glyphs} glyphs in
-              {meta.video.typefaces} typefaces · target <span class="mono-word">{meta.target}</span>
-            </div>
-            <div class="badgerow">
-              <span class="badge info">{done}/{planned} runs</span>
-              <span class="badge mute">{meta.models} {meta.models === 1 ? 'model' : 'models'}</span>
-              <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>
-                {meta.cheated > 0 ? `✗ ${meta.cheated} invalidated` : '✓ 0 invalidated'}
-              </span>
-              <span class="badge pass">✓ isolated workdirs</span>
-              <span class="badge pass">✓ key committed in advance</span>
-            </div>
-          </div>
+          <span class="badge pass">✓ isolated workdirs</span>
+          <span class="badge pass">✓ key committed in advance</span>
         </div>
-      </section>
-
-      {done === 0 && (
-        <section class="panel">
-          <p class="note">
-            No runs recorded yet. The grid writes one row per completed run;
-            this page is rebuilt from <code>results/runs.jsonl</code>.
-          </p>
-        </section>
-      )}
-
-      <!-- ================= leaderboard ================= -->
-      {done > 0 && (
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">leaderboard</div>
-              <div class="panel-sub">
-                ranked by exact solves, then mean characters recovered. runs that
-                left their working directory are excluded from every score.
-              </div>
-            </div>
-            <span class={`badge ${verdict(overall).cls}`}>{verdict(overall).text}</span>
-          </div>
-
-          <div class="tiles">
-            <div class="tile">
-              <div class="label">runs scored</div>
-              <div class="value">{overall.valid}</div>
-            </div>
-            <div class="tile">
-              <div class="label">exact solves</div>
-              <div class="value">
-                {overall.exact}<span class="unit">/{overall.valid}</span>
-              </div>
-            </div>
-            <div class="tile">
-              <div class="label">mean chars</div>
-              <div class="value">
-                {overall.chars}<span class="unit">/17</span>
-              </div>
-            </div>
-            <div class="tile">
-              <div class="label">mean frames</div>
-              <div class="value">
-                {overall.frames}<span class="unit">/17</span>
-              </div>
-            </div>
-            <div class="tile">
-              <div class="label">mean time</div>
-              <div class="value">
-                {Math.round(overall.wall_s)}<span class="unit">s</span>
-              </div>
-            </div>
-            <div class="tile">
-              <div class="label">invalidated</div>
-              <div class="value">{overall.cheated}</div>
-            </div>
-          </div>
-
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>model</th>
-                  <th class="num">solved</th>
-                  <th class="num">chars/17</th>
-                  <th>accuracy</th>
-                  <th class="num">frame</th>
-                  <th class="num">spatial</th>
-                  <th class="num">best</th>
-                  <th class="num">avg t</th>
-                  <th class="num">cost</th>
-                  <th class="num">fail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((a: any, i: number) => {
-                  const b = bar(pct(a.chars, 17));
-                  return (
-                    <tr>
-                      <td class="rank">{i + 1}</td>
-                      <td class="model">{a.model}</td>
-                      <td class="num">{a.exact}/{a.valid}</td>
-                      <td class="num">{a.chars}</td>
-                      <td>
-                        <span class="bar">
-                          <span class={b.cls}>{'█'.repeat(b.on)}</span><span class="off"
-                            >{'·'.repeat(b.off)}</span
-                          >
-                        </span>
-                      </td>
-                      <td class="num">{a.frames}</td>
-                      <td class="num">{a.spatial}</td>
-                      <td class="num">{a.best_chars}</td>
-                      <td class="num">{Math.round(a.wall_s)}s</td>
-                      <td class="num">{a.cost > 0 ? `$${a.cost.toFixed(2)}` : '—'}</td>
-                      <td class="num">{a.failed}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <!-- ================= per level ================= -->
-      {done > 0 &&
-        Object.keys(by_level)
-          .sort()
-          .map((lv) => {
-            const m = lvlMeta[lv];
-            const rowsFor = leaderboard
-              .map((a: any) => ({ model: a.model, ...by_level[lv][a.model] }))
-              .filter((r: any) => r.runs > 0);
-            const tot = rowsFor.reduce(
-              (acc: any, r: any) => ({
-                valid: acc.valid + r.valid,
-                exact: acc.exact + r.exact,
-                chars: acc.chars + r.chars * r.valid,
-                frames: acc.frames + r.frames * r.valid,
-                cheated: acc.cheated + r.cheated,
-              }),
-              { valid: 0, exact: 0, chars: 0, frames: 0, cheated: 0 }
-            );
-            const v = verdict({ valid: tot.valid, exact: tot.exact, chars: tot.chars });
-            return (
-              <section class="panel" id={lv === '1' ? 'levels' : undefined}>
-                <div class="panel-head">
-                  <div>
-                    <div class="panel-title">{m.short} — {m.name}</div>
-                    <div class="panel-sub">{m.detail}</div>
-                  </div>
-                  <span class={`badge ${v.cls}`}>{v.text}</span>
-                </div>
-
-                <div class="tiles">
-                  <div class="tile">
-                    <div class="label">exact solves</div>
-                    <div class="value">
-                      {tot.exact}<span class="unit">/{tot.valid}</span>
-                    </div>
-                  </div>
-                  <div class="tile">
-                    <div class="label">mean chars</div>
-                    <div class="value">
-                      {tot.valid ? (tot.chars / tot.valid).toFixed(1) : '0.0'}
-                      <span class="unit">/17</span>
-                    </div>
-                  </div>
-                  <div class="tile">
-                    <div class="label">mean frames</div>
-                    <div class="value">
-                      {tot.valid ? (tot.frames / tot.valid).toFixed(1) : '0.0'}
-                      <span class="unit">/17</span>
-                    </div>
-                  </div>
-                  <div class="tile">
-                    <div class="label">invalidated</div>
-                    <div class="value">{tot.cheated}</div>
-                  </div>
-                </div>
-
-                <div class="scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>model</th>
-                        <th class="num">solved</th>
-                        <th class="num">chars/17</th>
-                        <th>accuracy</th>
-                        <th class="num">frame</th>
-                        <th class="num">spatial</th>
-                        <th class="num">avg t</th>
-                        <th class="num">shell</th>
-                        <th class="num">imgs</th>
-                        <th>diffed</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rowsFor.map((r: any) => {
-                        const b = bar(pct(r.chars, 17));
-                        return (
-                          <tr>
-                            <td class="model">{r.model}</td>
-                            <td class="num">{r.exact}/{r.valid}</td>
-                            <td class="num">{r.chars}</td>
-                            <td>
-                              <span class="bar">
-                                <span class={b.cls}>{'█'.repeat(b.on)}</span><span class="off"
-                                  >{'·'.repeat(b.off)}</span
-                                >
-                              </span>
-                            </td>
-                            <td class="num">{r.frames}</td>
-                            <td class="num">{r.spatial}</td>
-                            <td class="num">{Math.round(r.wall_s)}s</td>
-                            <td class="num">{r.shell}</td>
-                            <td class="num">{r.images}</td>
-                            <td>
-                              {r.diffed > 0 ? (
-                                <span class="badge pass">✓ {r.diffed}/{r.valid}</span>
-                              ) : (
-                                <span class="badge mute">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            );
-          })}
-
-      <!-- ================= hint value ================= -->
-      {done > 0 && (
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">what the hint is worth</div>
-              <div class="panel-sub">
-                blind states only that something is hidden. hinted gives the length,
-                the one-typeface-per-letter rule, temporal ordering, and warns about
-                faintness and decoys.
-              </div>
-            </div>
-          </div>
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>model</th>
-                  <th class="num">blind chars</th>
-                  <th class="num">hinted chars</th>
-                  <th class="num">Δ</th>
-                  <th class="num">blind solved</th>
-                  <th class="num">hinted solved</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((a: any) => {
-                  const b = by_mode.Blind[a.model] || { chars: 0, exact: 0, valid: 0 };
-                  const h = by_mode.Hinted[a.model] || { chars: 0, exact: 0, valid: 0 };
-                  const d = +(h.chars - b.chars).toFixed(1);
-                  const cls = d > 0.5 ? 'pass' : d < -0.5 ? 'fail' : 'mute';
-                  return (
-                    <tr>
-                      <td class="model">{a.model}</td>
-                      <td class="num">{b.chars}</td>
-                      <td class="num">{h.chars}</td>
-                      <td class="num">
-                        <span class={`badge ${cls}`}>{d > 0 ? `+${d}` : d}</span>
-                      </td>
-                      <td class="num">{b.exact}/{b.valid}</td>
-                      <td class="num">{h.exact}/{h.valid}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <!-- ================= typefaces ================= -->
-      {typefaces.length > 0 && (
-        <section class="panel" id="typefaces">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">hardest typefaces</div>
-              <div class="panel-sub">
-                share of scored runs that read each glyph position correctly.
-                every position uses a different face, so repeated letters look
-                nothing alike.
-              </div>
-            </div>
-          </div>
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th class="num">pos</th>
-                  <th>char</th>
-                  <th>typeface</th>
-                  <th>read correctly</th>
-                  <th class="num">%</th>
-                  <th class="num">ok/total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {typefaces.map((t: any) => {
-                  const b = bar(t.pct / 100, 18);
-                  return (
-                    <tr>
-                      <td class="num rank">{t.index}</td>
-                      <td class="model">{t.char}</td>
-                      <td>{t.font}</td>
-                      <td>
-                        <span class="bar">
-                          <span class={b.cls}>{'█'.repeat(b.on)}</span><span class="off"
-                            >{'·'.repeat(b.off)}</span
-                          >
-                        </span>
-                      </td>
-                      <td class="num">{t.pct}%</td>
-                      <td class="num">{t.ok}/{t.total}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <!-- ================= all runs ================= -->
-      {done > 0 && (
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <div class="panel-title">every run</div>
-              <div class="panel-sub">one row per attempt, including invalidated ones</div>
-            </div>
-          </div>
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>model</th>
-                  <th>lvl</th>
-                  <th>mode</th>
-                  <th class="num">t</th>
-                  <th>outcome</th>
-                  <th>answer</th>
-                  <th class="num">chars</th>
-                  <th class="num">frames</th>
-                  <th class="num">time</th>
-                  <th class="num">shell</th>
-                  <th class="num">imgs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((r: any) => {
-                  const cls = r.cheated
-                    ? 'fail'
-                    : r.exact
-                      ? 'pass'
-                      : r.outcome !== 'Scored'
-                        ? 'mute'
-                        : r.chars > 0
-                          ? 'warn'
-                          : 'fail';
-                  const text = r.cheated
-                    ? '✗ INVALID'
-                    : r.exact
-                      ? '✓ SOLVED'
-                      : r.outcome !== 'Scored'
-                        ? `— ${r.outcome.toUpperCase()}`
-                        : r.chars > 0
-                          ? '~ PARTIAL'
-                          : '✗ MISSED';
-                  return (
-                    <tr>
-                      <td class="model">{r.model}</td>
-                      <td>L{r.level}</td>
-                      <td>{r.mode.toLowerCase()}</td>
-                      <td class="num rank">{r.trial}</td>
-                      <td><span class={`badge ${cls}`}>{text}</span></td>
-                      <td class="mono-word">{r.answer || '—'}</td>
-                      <td class="num">{r.chars}</td>
-                      <td class="num">{r.frames}</td>
-                      <td class="num">{r.wall_s}s</td>
-                      <td class="num">{r.shell}</td>
-                      <td class="num">{r.images}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <!-- ================= how ================= -->
-      <section class="panel" id="how">
-        <div class="panel-head">
-          <div class="panel-title">how it works</div>
-        </div>
-        <p class="note">
-          The word <strong>{meta.target}</strong> is split into 17 letters, each drawn
-          in a different typeface and planted at a different moment in a 30-second
-          1080p60 montage cut from @t3dotgg's uploads at 6× speed. Reading the letters
-          in temporal order spells the word. Models get a path to
-          <code>clip.mp4</code> and a shell — nothing else. How to look at a video is
-          part of the test, and they must report the frame and pixel position of every
-          glyph, not just the word.
-        </p>
-        <div class="hr"></div>
-        <p class="note">
-          <strong>L3 is hard but not impossible.</strong> Single-frame flashes defeat
-          fps sampling; ~6/255 recovered contrast defeats looking; 6× cutting defeats
-          naive frame differencing. Glyphs are placed mid-shot in patches with high
-          spatial variance but <em>low temporal motion</em> — visually busy enough to
-          hide in, still enough that local windowed differencing recovers them. An
-          earlier version placed them on peak spatial variance alone, which put every
-          glyph in the highest-motion region and made the level unsolvable at 5/17
-          findable.
-        </p>
-        <div class="hr"></div>
-        <p class="note">
-          <strong>Encoding survival.</strong> H.264 discards an 8/255 single-frame
-          bump. The generator forces a keyframe on every glyph frame, then decodes its
-          own output and diffs it against an identically-encoded glyph-free reference,
-          raising the delta until every glyph clears the detection floor.
-        </p>
-        <div class="hr"></div>
-        <p class="note">
-          <strong>Integrity.</strong> The first grid was thrown away: run directories
-          sat inside the project, and agents walked <code>../../..</code>, read the
-          generator source and re-ran it with the recorded seed to reproduce exact
-          glyph coordinates — one scoring a flawless blind L3 without analysing a
-          frame. Runs now execute in <code>/private/tmp/vidtask</code>, both prompts
-          forbid leaving the working directory, and every shell command is scanned for
-          project-tree markers. A hit zeroes the score and marks the run
-          <span class="badge fail">✗ INVALID</span>. The answer key is withheld until
-          the grid completes and pinned in advance by SHA-256
-          {meta.seed_committed && <> — <code>{meta.seed_committed.slice(0, 24)}…</code></>}.
-        </p>
-      </section>
-
-      <footer>
-        built from results/runs.jsonl ·
-        <a href="https://github.com/shivamhwp/glyphhunt">github.com/shivamhwp/glyphhunt</a>
-        {!meta.complete && ' · grid still running, page rebuilds as rows land'}
-      </footer>
+      </div>
     </div>
 
-    <script is:inline>
-      const btn = document.getElementById('theme');
-      const root = document.documentElement;
-      const label = () => (root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
-      btn.textContent = label();
-      btn.addEventListener('click', () => {
-        const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        root.setAttribute('data-theme', next);
-        localStorage.setItem('gh-theme', next);
-        btn.textContent = label();
-      });
-    </script>
-  </body>
-</html>
+    <!-- the target, each letter in the face it is actually drawn in -->
+    <div class="wordstrip">
+      {order.map((i) => (
+        <div class="cell">
+          <span
+            class="glyph glyph-lg"
+            style={`-webkit-mask-image:url(${g[i].data});mask-image:url(${g[i].data});width:${(54 * g[i].aspect).toFixed(1)}px`}
+            role="img"
+            aria-label={g[i].char}
+          />
+          <div class="face">{g[i].font}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  {meta.total_runs === 0 && (
+    <section class="panel">
+      <p class="note">No runs recorded yet. This page rebuilds from <code>results/runs.jsonl</code>.</p>
+    </section>
+  )}
+
+  {meta.total_runs > 0 && (
+    <>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">overall</div>
+            <div class="panel-sub">across every model, level and prompt mode</div>
+          </div>
+          <span class={`badge ${verdict(overall).cls}`}>{verdict(overall).text}</span>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="label">runs scored</div><div class="value">{overall.valid}</div></div>
+          <div class="tile"><div class="label">exact solves</div><div class="value">{overall.exact}<span class="unit">/{overall.valid}</span></div></div>
+          <div class="tile"><div class="label">mean chars</div><div class="value">{overall.chars}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">mean frames</div><div class="value">{overall.frames}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">mean spatial</div><div class="value">{overall.spatial}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">mean time</div><div class="value">{Math.round(overall.wall_s)}<span class="unit">s</span></div></div>
+          <div class="tile"><div class="label">invalidated</div><div class="value">{overall.cheated}</div></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">every metric</div>
+            <div class="panel-sub">
+              click any column to sort. word, temporal and spatial accuracy are
+              kept separate — reading the word and knowing where you saw it are
+              different abilities.
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input class="search" data-search="lb" type="search" placeholder="filter models…" />
+          <span class="count" data-count="lb"></span>
+        </div>
+
+        <div class="scroll" data-table="lb">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="str">model</th>
+                <th class="num" data-sort="num">solved</th>
+                <th class="num" data-sort="num">chars/17</th>
+                <th>accuracy</th>
+                <th class="num" data-sort="num">best</th>
+                <th class="num" data-sort="num">frame</th>
+                <th class="num" data-sort="num">spatial</th>
+                <th class="num" data-sort="num">lev</th>
+                {levelKeys.map((lv) => <th class="num" data-sort="num">L{lv}</th>)}
+                <th class="num" data-sort="num">blind</th>
+                <th class="num" data-sort="num">hinted</th>
+                <th class="num" data-sort="num">avg t</th>
+                <th class="num" data-sort="num">shell</th>
+                <th class="num" data-sort="num">ffmpeg</th>
+                <th class="num" data-sort="num">python</th>
+                <th class="num" data-sort="num">imgs</th>
+                <th class="num" data-sort="num">diffed</th>
+                <th class="num" data-sort="num">out tok</th>
+                <th class="num" data-sort="num">cost</th>
+                <th class="num" data-sort="num">fail</th>
+                <th class="num" data-sort="num">invalid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((a: any) => {
+                const b = bar(pct(a.chars, 17));
+                return (
+                  <tr>
+                    <td class="model">{a.model}</td>
+                    <td class="num" data-v={pct(a.exact, a.valid)}>{a.exact}/{a.valid}</td>
+                    <td class="num">{a.chars}</td>
+                    <td data-v={a.chars}>
+                      <span class="bar"><span class={b.cls}>{b.on}</span><span class="off">{b.off}</span></span>
+                    </td>
+                    <td class="num">{a.best_chars}</td>
+                    <td class="num">{a.frames}</td>
+                    <td class="num">{a.spatial}</td>
+                    <td class="num">{a.lev}</td>
+                    {levelKeys.map((lv) => {
+                      const c = by_level[lv][a.model];
+                      return <td class="num">{c && c.valid ? c.chars : '—'}</td>;
+                    })}
+                    <td class="num">{by_mode.Blind[a.model]?.valid ? by_mode.Blind[a.model].chars : '—'}</td>
+                    <td class="num">{by_mode.Hinted[a.model]?.valid ? by_mode.Hinted[a.model].chars : '—'}</td>
+                    <td class="num">{secs(a.wall_s)}</td>
+                    <td class="num">{a.shell}</td>
+                    <td class="num">{a.ffmpeg}</td>
+                    <td class="num">{a.python}</td>
+                    <td class="num">{a.images}</td>
+                    <td class="num">{a.diffed}</td>
+                    <td class="num">{Math.round(a.out_tokens).toLocaleString()}</td>
+                    <td class="num">{money(a.cost)}</td>
+                    <td class="num">{a.failed}</td>
+                    <td class="num">{a.cheated}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">what the hint is worth</div>
+            <div class="panel-sub">
+              blind says only that something is hidden. hinted gives the length,
+              the one-typeface-per-letter rule, temporal ordering, and warns
+              about faintness and decoys.
+            </div>
+          </div>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>model</th>
+                <th class="num">blind chars</th>
+                <th class="num">hinted chars</th>
+                <th class="num">Δ</th>
+                <th class="num">blind solved</th>
+                <th class="num">hinted solved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((a: any) => {
+                const bl = by_mode.Blind[a.model] || { chars: 0, exact: 0, valid: 0 };
+                const hi = by_mode.Hinted[a.model] || { chars: 0, exact: 0, valid: 0 };
+                // A delta against a mode with no runs is not a delta -- while
+                // the grid is partway through, one side is often still empty.
+                const comparable = bl.valid > 0 && hi.valid > 0;
+                const d = +(hi.chars - bl.chars).toFixed(1);
+                const cls = !comparable ? 'mute' : d > 0.5 ? 'pass' : d < -0.5 ? 'fail' : 'mute';
+                return (
+                  <tr>
+                    <td class="model">{a.model}</td>
+                    <td class="num">{bl.valid ? bl.chars : '—'}</td>
+                    <td class="num">{hi.valid ? hi.chars : '—'}</td>
+                    <td class="num">
+                      <span class={`badge ${cls}`}>
+                        {comparable ? (d > 0 ? `+${d}` : d) : 'n/a'}
+                      </span>
+                    </td>
+                    <td class="num">{bl.valid ? `${bl.exact}/${bl.valid}` : '—'}</td>
+                    <td class="num">{hi.valid ? `${hi.exact}/${hi.valid}` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  )}
+</Base>

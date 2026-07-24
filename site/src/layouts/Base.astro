@@ -1,0 +1,138 @@
+---
+import '../styles.css';
+import data from '../data/results.json';
+
+interface Props {
+  title: string;
+  lede?: string;
+  path: string;
+}
+const { title, lede, path } = Astro.props;
+const meta = (data as any).meta;
+
+const links = [
+  { href: '/', label: 'leaderboard' },
+  { href: '/levels/', label: 'levels' },
+  { href: '/typefaces/', label: 'typefaces' },
+  { href: '/runs/', label: 'runs' },
+  { href: '/how/', label: 'how' },
+  { href: '/device/', label: 'device' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · glyphhunt bench</title>
+    <meta
+      name="description"
+      content="Can an agentic model find a word hidden across 30 seconds of video? 17 letters, 17 typefaces, 1800 frames."
+    />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Geist-Variable.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/Silkscreen-Regular.woff2" crossorigin />
+    <script is:inline>
+      // Runs before paint so the page never flashes the wrong theme.
+      const saved = localStorage.getItem('gh-theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+    </script>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="/">glyphhunt</a>
+        <nav>
+          {links.map((l) => (
+            <a href={l.href} aria-current={l.href === path ? 'page' : undefined}>{l.label}</a>
+          ))}
+          <a class="plain" href="https://github.com/shivamhwp/glyphhunt">source</a>
+          <button id="theme" type="button">light</button>
+        </nav>
+      </header>
+
+      <h1 class="page-title">{title}</h1>
+      {lede && <p class="page-lede">{lede}</p>}
+
+      <slot />
+
+      <footer>
+        {meta.total_runs}/{meta.planned_runs} runs · built from results/runs.jsonl ·
+        <a href="https://github.com/shivamhwp/glyphhunt">github.com/shivamhwp/glyphhunt</a>
+        {!meta.complete && ' · grid still running'}
+      </footer>
+    </div>
+
+    <script is:inline>
+      const btn = document.getElementById('theme');
+      const root = document.documentElement;
+      const label = () => (root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+      btn.textContent = label();
+      btn.addEventListener('click', () => {
+        const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('gh-theme', next);
+        btn.textContent = label();
+      });
+
+      // Shared table search + column sort. Any table inside a [data-table]
+      // wrapper gets it; the wrapper's [data-search] input filters rows.
+      document.querySelectorAll('[data-table]').forEach((wrap) => {
+        const table = wrap.querySelector('table');
+        const tbody = table.querySelector('tbody');
+        const input = document.querySelector(`[data-search="${wrap.dataset.table}"]`);
+        const count = document.querySelector(`[data-count="${wrap.dataset.table}"]`);
+        const rows = Array.from(tbody.rows);
+
+        const refresh = () => {
+          const q = (input?.value || '').trim().toLowerCase();
+          let shown = 0;
+          rows.forEach((r) => {
+            const hit = !q || r.textContent.toLowerCase().includes(q);
+            r.classList.toggle('hidden', !hit);
+            if (hit) shown++;
+          });
+          if (count) count.textContent = `${shown} of ${rows.length}`;
+        };
+
+        input?.addEventListener('input', refresh);
+
+        table.querySelectorAll('th[data-sort]').forEach((th, idx) => {
+          th.classList.add('sortable');
+          th.insertAdjacentHTML('beforeend', '<span class="arrow">↕</span>');
+          th.addEventListener('click', () => {
+            const kind = th.dataset.sort;
+            const col = Array.from(th.parentNode.children).indexOf(th);
+            const asc = th.dataset.dir !== 'asc';
+            table.querySelectorAll('th').forEach((o) => {
+              o.classList.remove('sorted');
+              delete o.dataset.dir;
+              const a = o.querySelector('.arrow');
+              if (a) a.textContent = '↕';
+            });
+            th.classList.add('sorted');
+            th.dataset.dir = asc ? 'asc' : 'desc';
+            th.querySelector('.arrow').textContent = asc ? '↑' : '↓';
+
+            const val = (r) => {
+              const raw = r.cells[col]?.dataset.v ?? r.cells[col]?.textContent ?? '';
+              if (kind === 'num') {
+                const n = parseFloat(String(raw).replace(/[^0-9.\-]/g, ''));
+                return isNaN(n) ? -Infinity : n;
+              }
+              return String(raw).toLowerCase();
+            };
+            rows.sort((a, b) => {
+              const x = val(a), y = val(b);
+              if (x < y) return asc ? -1 : 1;
+              if (x > y) return asc ? 1 : -1;
+              return 0;
+            });
+            rows.forEach((r) => tbody.appendChild(r));
+          });
+        });
+
+        refresh();
+      });
+    </script>
+  </body>
+</html>

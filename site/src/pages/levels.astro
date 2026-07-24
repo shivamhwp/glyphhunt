@@ -1,0 +1,112 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/results.json';
+import { bar, pct, verdict, secs } from '../lib/fmt';
+
+const { by_level, leaderboard, levels, meta } = data as any;
+const lvlMeta = Object.fromEntries(levels.map((l: any) => [String(l.level), l]));
+const keys = Object.keys(by_level).sort();
+---
+
+<Base
+  title="levels"
+  path="/levels/"
+  lede="Three levels, three different skills — scores are not comparable across them. Each hides the same 17 glyphs a different way."
+>
+  {keys.length === 0 && (
+    <section class="panel">
+      <p class="note">No runs recorded yet.</p>
+      {levels.map((l: any) => (
+        <>
+          <div class="hr"></div>
+          <p class="note"><strong>{l.short} — {l.name}.</strong> {l.detail}</p>
+        </>
+      ))}
+    </section>
+  )}
+
+  {keys.map((lv) => {
+    const m = lvlMeta[lv];
+    const rows = leaderboard
+      .map((a: any) => ({ model: a.model, ...by_level[lv][a.model] }))
+      .filter((r: any) => r.runs > 0);
+    const tot = rows.reduce(
+      (acc: any, r: any) => ({
+        valid: acc.valid + r.valid,
+        exact: acc.exact + r.exact,
+        chars: acc.chars + r.chars * r.valid,
+        frames: acc.frames + r.frames * r.valid,
+        spatial: acc.spatial + r.spatial * r.valid,
+        cheated: acc.cheated + r.cheated,
+        diffed: acc.diffed + r.diffed,
+      }),
+      { valid: 0, exact: 0, chars: 0, frames: 0, spatial: 0, cheated: 0, diffed: 0 }
+    );
+    const v = verdict({ valid: tot.valid, exact: tot.exact, chars: tot.chars });
+    const per = (x: number) => (tot.valid ? (x / tot.valid).toFixed(1) : '0.0');
+    return (
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">{m.short} — {m.name}</div>
+            <div class="panel-sub">{m.detail}</div>
+          </div>
+          <span class={`badge ${v.cls}`}>{v.text}</span>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><div class="label">exact solves</div><div class="value">{tot.exact}<span class="unit">/{tot.valid}</span></div></div>
+          <div class="tile"><div class="label">mean chars</div><div class="value">{per(tot.chars)}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">mean frames</div><div class="value">{per(tot.frames)}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">mean spatial</div><div class="value">{per(tot.spatial)}<span class="unit">/17</span></div></div>
+          <div class="tile"><div class="label">used differencing</div><div class="value">{tot.diffed}<span class="unit">/{tot.valid}</span></div></div>
+          <div class="tile"><div class="label">invalidated</div><div class="value">{tot.cheated}</div></div>
+        </div>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>model</th>
+                <th class="num">solved</th>
+                <th class="num">chars/17</th>
+                <th>accuracy</th>
+                <th class="num">frame</th>
+                <th class="num">spatial</th>
+                <th class="num">avg t</th>
+                <th class="num">shell</th>
+                <th class="num">ffmpeg</th>
+                <th class="num">imgs</th>
+                <th>diffed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r: any) => {
+                const b = bar(pct(r.chars, 17));
+                return (
+                  <tr>
+                    <td class="model">{r.model}</td>
+                    <td class="num">{r.exact}/{r.valid}</td>
+                    <td class="num">{r.chars}</td>
+                    <td><span class="bar"><span class={b.cls}>{b.on}</span><span class="off">{b.off}</span></span></td>
+                    <td class="num">{r.frames}</td>
+                    <td class="num">{r.spatial}</td>
+                    <td class="num">{secs(r.wall_s)}</td>
+                    <td class="num">{r.shell}</td>
+                    <td class="num">{r.ffmpeg}</td>
+                    <td class="num">{r.images}</td>
+                    <td>
+                      {r.diffed > 0
+                        ? <span class="badge pass">✓ {r.diffed}/{r.valid}</span>
+                        : <span class="badge mute">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  })}
+</Base>

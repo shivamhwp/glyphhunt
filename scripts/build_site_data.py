@@ -27,6 +27,42 @@ def mean(xs):
     return round(st.mean(xs), 2) if xs else 0.0
 
 
+def sh(cmd, default="unknown"):
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        return r.stdout.strip().splitlines()[0] if r.stdout.strip() else default
+    except Exception:
+        return default
+
+
+def device_info():
+    """Machine and toolchain the grid actually ran on."""
+    mem = sh("sysctl -n hw.memsize", "0")
+    try:
+        mem_gb = f"{int(mem) / 1024**3:.0f} GB"
+    except ValueError:
+        mem_gb = "unknown"
+    return {
+        "cpu": sh("sysctl -n machdep.cpu.brand_string"),
+        "arch": platform.machine(),
+        "cores_physical": sh("sysctl -n hw.physicalcpu", "?"),
+        "cores_logical": sh("sysctl -n hw.logicalcpu", "?"),
+        "memory": mem_gb,
+        "os": f"macOS {platform.mac_ver()[0]}",
+        "kernel": platform.release(),
+        "ffmpeg": sh("ffmpeg -version | head -1 | awk '{print $3}'"),
+        "python": platform.python_version(),
+        "rust": sh("cargo --version | awk '{print $2}'"),
+        "node": sh("node --version"),
+        "codex_cli": sh("codex --version | awk '{print $2}'"),
+        "claude_cli": sh("claude --version | awk '{print $1}'"),
+        "concurrency": 8,
+        "timeout_s": 1800,
+        "codex_profile": "codex-p",
+        "run_root": "/private/tmp/vidtask",
+    }
+
+
 def load_rows():
     p = ROOT / "results" / "runs.jsonl"
     if not p.exists():
@@ -125,6 +161,7 @@ def main():
             # cannot regenerate the video and back out the answers mid-run.
             "seed": truth.get("seed") if complete else None,
             "machine": f"{platform.machine()} · macOS {platform.mac_ver()[0]}",
+            "device": device_info(),
             "total_runs": len(rows),
             "planned_runs": 108,
             "complete": complete,

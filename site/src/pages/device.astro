@@ -1,0 +1,71 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/results.json';
+
+const { meta } = data as any;
+const d = meta.device ?? {};
+const kv = [
+  ['cpu', d.cpu],
+  ['architecture', d.arch],
+  ['cores', d.cores_physical && `${d.cores_physical} physical / ${d.cores_logical} logical`],
+  ['memory', d.memory],
+  ['os', d.os],
+  ['kernel', d.kernel],
+];
+const tools = [
+  ['ffmpeg', d.ffmpeg],
+  ['python', d.python],
+  ['rust', d.rust],
+  ['node', d.node],
+  ['codex cli', d.codex_cli],
+  ['claude cli', d.claude_cli],
+];
+const harness = [
+  ['concurrency', d.concurrency && `${d.concurrency} runs in parallel`],
+  ['per-run timeout', d.timeout_s && `${d.timeout_s}s`],
+  ['codex profile', d.codex_profile],
+  ['run directory', d.run_root],
+  ['video', `${meta.video.res} · ${meta.video.fps}fps · ${meta.video.frames} frames · ${meta.video.duration_s}s`],
+  ['seed', meta.seed ?? 'withheld until the grid completes'],
+  ['key commitment', meta.seed_committed],
+];
+---
+
+<Base
+  title="device"
+  path="/device/"
+  lede="The machine and toolchain the grid ran on. Latency figures from the parallel accuracy pass are contended by construction and should not be read as model speed."
+>
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">machine</div></div>
+    <div class="kv">
+      {kv.filter(([, v]) => v).map(([k, v]) => (<><div>{k}</div><div>{v}</div></>))}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">toolchain</div></div>
+    <div class="kv">
+      {tools.filter(([, v]) => v && v !== 'unknown').map(([k, v]) => (<><div>{k}</div><div>{v}</div></>))}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">harness</div></div>
+    <div class="kv">
+      {harness.filter(([, v]) => v).map(([k, v]) => (<><div>{k}</div><div style="word-break:break-all">{v}</div></>))}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">on timing</div></div>
+    <p class="note">
+      The accuracy pass runs {d.concurrency ?? 8} agents at once, all of them
+      driving ffmpeg and Python over 1800-frame video. Wall-clock under that load
+      measures contention as much as it measures the model, so every row records
+      the concurrent-run count and the 1-minute load average alongside its
+      duration. Clean timings come from a separate sequential pass instead of
+      being quietly mixed into the same average.
+    </p>
+  </section>
+</Base>
