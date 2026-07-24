@@ -27,6 +27,8 @@ pub struct Row {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct ScoreView {
     #[serde(default)]
+    pub parsed: bool,
+    #[serde(default)]
     pub word_exact: bool,
     #[serde(default)]
     pub chars_correct: usize,
@@ -82,6 +84,28 @@ pub struct UsageView {
     pub cost_usd: Option<f64>,
 }
 
+impl Row {
+    /// Normalised outcome, matching what the site reports.
+    ///
+    /// A run is recorded as TimedOut whenever its process was still alive at
+    /// the wall-clock limit, even if it had already written a complete
+    /// answer. Counting that as a failure conflates "produced nothing before
+    /// the deadline" with "answered, but slowly" and inflates the failure
+    /// rate. Judge on whether an answer parsed; keep the timeout separate.
+    pub fn effective(&self) -> Outcome {
+        if self.outcome == Outcome::Cheated {
+            return Outcome::Cheated;
+        }
+        if self.score.parsed {
+            return Outcome::Scored;
+        }
+        self.outcome
+    }
+    pub fn hit_wall(&self) -> bool {
+        self.outcome == Outcome::TimedOut
+    }
+}
+
 pub fn load(path: &Path) -> Result<Vec<Row>> {
     let s = std::fs::read_to_string(path).unwrap_or_default();
     Ok(s.lines()
@@ -128,6 +152,7 @@ struct Agg {
     imgs: f64,
     diffs: usize,
     fails: usize,
+    walls: usize,
 }
 
 fn agg_of<'a, I: Iterator<Item = &'a Row>>(rows: I) -> Agg {
@@ -146,7 +171,8 @@ fn agg_of<'a, I: Iterator<Item = &'a Row>>(rows: I) -> Agg {
         a.ffmpeg += r.behavior.ffmpeg_invocations as f64;
         a.imgs += r.behavior.images_read as f64;
         a.diffs += r.behavior.used_frame_diff as usize;
-        a.fails += (r.outcome != Outcome::Scored) as usize;
+        a.fails += (r.effective() != Outcome::Scored) as usize;
+        a.walls += r.hit_wall() as usize;
     }
     a
 }
@@ -244,6 +270,22 @@ pub fn print(rows: &[Row]) {
             continue;
         }
         let (bm, hm) = (b.chars / b.runs.max(1) as f64, h.chars / h.runs.max(1) as f64);
+        // A delta against a mode with no runs is not a delta. Mid-grid one
+        // side is often still empty, and printing e.g. -17.0 would read as a
+        // finding rather than missing data.
+        if b.runs == 0 || h.runs == 0 {
+            println!(
+                "  {BOLD}{:<14}{R} {}{:>5}{R} -> {}{:>5}{R}   {DIM}n/a{R}  {DIM}(blind {} / hinted {} runs){R}",
+                m,
+                DIM,
+                if b.runs == 0 { "-".into() } else { format!("{bm:.1}") },
+                DIM,
+                if h.runs == 0 { "-".into() } else { format!("{hm:.1}") },
+                b.runs,
+                h.runs
+            );
+            continue;
+        }
         let d = hm - bm;
         println!(
             "  {BOLD}{:<14}{R} {}{:>5.1}{R} -> {}{:>5.1}{R}   {}{:+.1}{R}",
@@ -291,7 +333,7 @@ pub fn print(rows: &[Row]) {
 
     // ---- agent behaviour ---------------------------------------------
     println!("\n{BOLD}  HOW THEY WORKED{R}  {DIM}(means per run){R}\n");
-    println!("{CY}  model           shell  ffmpeg  images  turns   out-tok   diffed?  failed{R}");
+    println!("{CY}  model           shell  ffmpeg  images  turns   out-tok   diffed?  30m  failed{R}");
     println!("{DIM}  ──────────────────────────────────────────────────────────────────────{R}");
     for (m, a) in &ranked {
         let n = a.runs.max(1) as f64;
@@ -305,7 +347,7 @@ pub fn print(rows: &[Row]) {
             .sum::<f64>()
             / turns as f64;
         println!(
-            "  {BOLD}{:<14}{R} {:>5.1}  {:>6.1}  {:>6.1}  {:>5.1}  {:>8.0}  {:>7}  {:>6}",
+            "  {BOLD}{:<14}{R} {:>5.1}  {:>6.1}  {:>6.1}  {:>5.1}  {:>8.0}  {:>7}  {:>3}  {:>6}",
             m,
             a.shell / n,
             a.ffmpeg / n,
@@ -313,6 +355,7 @@ pub fn print(rows: &[Row]) {
             t,
             a.out_tok as f64 / n,
             format!("{}/{}", a.diffs, a.runs),
+            a.walls,
             a.fails
         );
     }
