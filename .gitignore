@@ -16,3 +16,13 @@ benchmark/target/
 
 # Live run log, appended while the grid executes.
 results/grid.log
+
+# The answer key and the verification sheets stay unpublished until the
+# benchmark has been run. The generator is deterministic from its seed, so
+# publishing these would let a model reproduce exact glyph coordinates
+# instead of finding them -- which is precisely what happened on the first
+# attempt. COMMITMENT.txt pins them in advance instead.
+ground_truth.json
+verification/
+.secret_seed
+results/*.jsonl

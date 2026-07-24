@@ -16,6 +16,8 @@ pub enum Outcome {
     TimedOut,
     /// Non-zero exit.
     Crashed,
+    /// Left its working directory and read the benchmark's own source.
+    Cheated,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,6 +36,9 @@ pub struct RunRecord {
     pub seed: u64,
     pub started_at: String,
     pub outcome: Outcome,
+    /// True when the agent reached the benchmark source instead of solving
+    /// from the video. Such runs are reported separately, never scored.
+    pub integrity_violation: bool,
     pub exit_code: Option<i32>,
     pub wall_ms: u128,
     /// Machine load sampled during the run, so a latency number taken under

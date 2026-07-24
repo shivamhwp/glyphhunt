@@ -109,6 +109,29 @@ cd benchmark && cargo build --release && cd ..
 ./benchmark/target/release/glyphhunt report
 ```
 
+## Isolation, and why it is not optional
+
+The first grid attempt was invalid. Run directories sat at
+`<project>/results/runs/<id>`, and agents walked `../../..`, found
+`generator/`, read the source, and re-ran the deterministic generator with the
+recorded seed to reproduce exact glyph coordinates. One scored a flawless
+**blind L3** — the hardest cell in the grid — without analysing a single
+frame. Three of the first seven runs did this.
+
+Three independent defences now apply:
+
+1. **Distance** — run directories live at `/private/tmp/vidtask/<id>`, outside
+   the project tree, containing nothing but `clip.mp4`.
+2. **Rule** — both prompts forbid reading anything outside the working
+   directory, so leaving it is a stated violation rather than fair play.
+3. **Detection** — every shell command is scanned for markers that can only
+   come from the project tree. A hit sets `integrity_violation`, forces the
+   `Cheated` outcome and zeroes the score, so a compromised run can never be
+   silently counted.
+
+The answer key and verification sheets are withheld until runs finish; see
+`COMMITMENT.txt`.
+
 ## Verifying the ground truth
 
 `verification/levelN_sheet.png` shows every target glyph twice: the crop as a

@@ -32,6 +32,9 @@ pub struct Behavior {
     pub used_contrast_stretch: bool,
     /// Highest `-frames`/`select` count we can attribute to a single command.
     pub max_frames_extracted: u64,
+    /// Commands showing the agent left its working directory and reached the
+    /// benchmark's own source. Any entry invalidates the run's score.
+    pub integrity_violations: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -60,6 +63,14 @@ pub struct RunOutput {
 fn scan_command(cmd: &str, b: &mut Behavior) {
     b.shell_commands += 1;
     let lower = cmd.to_lowercase();
+
+    for m in crate::config::INTEGRITY_MARKERS {
+        if lower.contains(m) && b.integrity_violations.len() < 20 {
+            let snippet: String = cmd.chars().take(240).collect();
+            b.integrity_violations.push(format!("[{m}] {snippet}"));
+            break;
+        }
+    }
     if lower.contains("ffmpeg") || lower.contains("ffprobe") {
         b.ffmpeg_invocations += 1;
     }

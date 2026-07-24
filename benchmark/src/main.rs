@@ -28,7 +28,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 
-use config::{ModelCfg, PromptMode, GRID, LEVELS};
+use config::{ModelCfg, PromptMode, GRID, LEVELS, RUN_ROOT};
 use record::{Outcome, RunRecord};
 use runner::RunSpec;
 use truth::GroundTruth;
@@ -192,7 +192,7 @@ async fn run(
             let load = load_avg();
 
             let spec = RunSpec {
-                run_dir: root.join("results/runs").join(&run_id),
+                run_dir: std::path::Path::new(RUN_ROOT).join(&run_id),
                 video: root.join("videos").join(format!("level{level}.mp4")),
                 prompt_path: root.join("prompts").join(mode.file()),
                 cfg: cfg.clone(),
@@ -218,6 +218,7 @@ async fn run(
                 seed: gt.seed,
                 started_at: chrono::Utc::now().to_rfc3339(),
                 outcome,
+                integrity_violation: false,
                 exit_code: None,
                 wall_ms: wall,
                 load_avg_1m: load,
@@ -243,7 +244,10 @@ async fn run(
                         .ok()
                         .map(|lt| score::score(parsed.as_ref(), &gt, lt))
                         .unwrap_or_default();
-                    let outcome = if o.timed_out {
+                    let cheated = !o.behavior.integrity_violations.is_empty();
+                    let outcome = if cheated {
+                        Outcome::Cheated
+                    } else if o.timed_out {
                         Outcome::TimedOut
                     } else if o.exit_code.unwrap_or(0) != 0 {
                         Outcome::Crashed
@@ -252,11 +256,15 @@ async fn run(
                     } else {
                         Outcome::Scored
                     };
+                    // Zero the score outright rather than trusting a caller to
+                    // filter on the flag later.
+                    let sc = if cheated { Default::default() } else { sc };
                     let tail: String = {
                         let c: Vec<char> = o.final_message.chars().collect();
                         c[c.len().saturating_sub(600)..].iter().collect()
                     };
                     RunRecord {
+                        integrity_violation: cheated,
                         exit_code: o.exit_code,
                         wall_ms: o.wall_ms,
                         outcome,

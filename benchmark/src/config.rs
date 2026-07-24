@@ -60,3 +60,30 @@ pub const CODEX_HOME_SUFFIX: &str = ".codex-p";
 
 /// Agentic video work is slow; anything past this is a hang, not a think.
 pub const RUN_TIMEOUT_SECS: u64 = 1800;
+
+/// Run directories live OUTSIDE the project tree, under a neutral name.
+///
+/// With run dirs at `<project>/results/runs/<id>`, agents walked `../../..`,
+/// found the generator, and re-ran it with the recorded seed to reproduce
+/// exact glyph coordinates -- scoring a perfect blind L3 without looking at
+/// the video at all. Distance alone is not a guarantee, so it is backed by
+/// the prompt rule and the detector below.
+pub const RUN_ROOT: &str = "/private/tmp/vidtask";
+
+/// Markers that can only appear in an agent's shell history if it left its
+/// working directory and found the benchmark's own source or answers.
+///
+/// Deliberately narrow. Matching on bare filenames like `verify.py` or
+/// `render.py` would flag honest runs -- agents routinely write scratch
+/// scripts by those names -- and matching the target word would flag every
+/// correct answer. These are artifacts that exist only in the project tree,
+/// plus the escape sequence that reaches it from a run directory.
+pub const INTEGRITY_MARKERS: &[&str] = &[
+    "glyphhunt",
+    "ground_truth",
+    "base_montage",
+    "_reference.mp4",
+    "_sheet.png",
+    "generator/",
+    "../../..",
+];

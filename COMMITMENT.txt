@@ -1,0 +1,11 @@
+a9b1edfb83bf69ce91eaa7d3f8b158003aa4d76027646c46f51e3f74a8ac109e
+
+SHA-256 of ground_truth.json, published before any benchmark run.
+
+The generator is deterministic from a seed. Publishing the seed or the answer
+key lets a model reproduce exact glyph frames and coordinates from source
+rather than recovering them from the video -- on the first attempt three of
+seven runs did exactly that, one scoring a perfect blind L3 without analysing
+a single frame. The seed and key are therefore withheld until the runs are
+complete, and this hash pins them so they provably were not changed after
+seeing results.

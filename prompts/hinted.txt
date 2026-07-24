@@ -32,5 +32,10 @@ your best estimate rather than omitting it.
 
 Also print the same JSON as your final message.
 
+Work only inside your current working directory, and use only `clip.mp4` as
+your source of information. Do not read, list, or search any directory
+outside it. In particular, do not go looking for the tooling that produced
+this video or for any answer key -- runs that do are discarded.
+
 Solve this yourself. Do not delegate any part of the task to another AI
 model, agent, or CLI (including claude, codex, or any subagent).
