@@ -12,6 +12,10 @@ import statistics as st
 from datetime import datetime, timezone
 from pathlib import Path
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rescore import repair  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "src" / "data" / "results.json"
 
@@ -149,6 +153,13 @@ def agg(rows):
 
 def main():
     rows = load_rows()
+    # Runs flagged by a marker we have since retired get their real score back
+    # from the stored answer, rather than being left zeroed.
+    gt_path = ROOT / "ground_truth.json"
+    if gt_path.exists():
+        rows, repaired = repair(rows, json.loads(gt_path.read_text()))
+        if repaired:
+            print(f"  recovered {repaired} falsely flagged run(s)")
     models = sorted({r["model"] for r in rows})
     levels = sorted({r["level"] for r in rows})
 
@@ -230,6 +241,7 @@ def main():
                 "timed_out": r["outcome"] == "TimedOut",
                 "cheated": bool(r.get("integrity_violation")),
                 "rate_limited": rate_limited(r),
+                "falsely_flagged": bool(r.get("falsely_flagged")),
                 "exact": bool(r["score"].get("word_exact")),
                 "chars": r["score"].get("chars_correct", 0),
                 "frames": r["score"].get("frames_correct", 0),

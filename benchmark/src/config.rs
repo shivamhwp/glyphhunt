@@ -78,12 +78,20 @@ pub const RUN_ROOT: &str = "/private/tmp/vidtask";
 /// scripts by those names -- and matching the target word would flag every
 /// correct answer. These are artifacts that exist only in the project tree,
 /// plus the escape sequence that reaches it from a run directory.
+/// Every marker here names something that exists ONLY in the project tree.
+///
+/// Earlier versions also matched `_sheet.png`, `_reference.mp4`, `generator/`
+/// and `../../..`. All four were wrong. An agent tiling candidate frames
+/// naturally writes something like `suspect_sheet.png`, and one was flagged
+/// for exactly that despite never leaving its directory. And now that run
+/// directories live under `/private/tmp/vidtask`, a short relative path
+/// cannot reach the project at all -- `../../..` lands in `/private`, so it
+/// signals nothing while flagging agents that merely nest their scratch
+/// directories. Anything that genuinely reaches the project has to name it.
 pub const INTEGRITY_MARKERS: &[&str] = &[
     "glyphhunt",
     "ground_truth",
     "base_montage",
-    "_reference.mp4",
-    "_sheet.png",
-    "generator/",
-    "../../..",
+    "/users/shivam",
+    "developer/t3",
 ];
