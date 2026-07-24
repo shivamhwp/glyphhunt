@@ -13,3 +13,6 @@ results/runs/
 .venv/
 __pycache__/
 benchmark/target/
+
+# Live run log, appended while the grid executes.
+results/grid.log
