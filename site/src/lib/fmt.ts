@@ -18,7 +18,9 @@ export function verdict(a: any) {
 export function runBadge(r: any) {
   if (r.cheated) return { cls: 'fail', text: '✗ INVALID' };
   if (r.exact) return { cls: 'pass', text: '✓ SOLVED' };
-  if (r.outcome !== 'Scored') return { cls: 'mute', text: `— ${r.outcome.toUpperCase()}` };
+  // A run that answered is judged on its answer even if the process was still
+  // alive at the wall-clock limit; `timed_out` stays visible separately.
+  if (r.outcome !== 'Scored') return { cls: 'mute', text: '— TIMED OUT' };
   return r.chars > 0 ? { cls: 'warn', text: '~ PARTIAL' } : { cls: 'fail', text: '✗ MISSED' };
 }
 

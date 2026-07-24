@@ -51,6 +51,7 @@ const { runs, meta } = data as any;
               <th class="num" data-sort="num">shell</th>
               <th class="num" data-sort="num">imgs</th>
               <th data-sort="str">diffed</th>
+              <th data-sort="str">hit wall</th>
             </tr>
           </thead>
           <tbody>
@@ -71,6 +72,7 @@ const { runs, meta } = data as any;
                   <td class="num">{r.shell}</td>
                   <td class="num">{r.images}</td>
                   <td class="mono">{r.diffed ? 'yes' : '—'}</td>
+                  <td class="mono">{r.timed_out ? <span class="badge warn">30m</span> : '—'}</td>
                 </tr>
               );
             })}

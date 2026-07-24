@@ -78,6 +78,7 @@ const levelKeys = Object.keys(by_level).sort();
           <div class="tile"><div class="label">mean frames</div><div class="value">{overall.frames}<span class="unit">/17</span></div></div>
           <div class="tile"><div class="label">mean spatial</div><div class="value">{overall.spatial}<span class="unit">/17</span></div></div>
           <div class="tile"><div class="label">mean time</div><div class="value">{Math.round(overall.wall_s)}<span class="unit">s</span></div></div>
+          <div class="tile"><div class="label">hit 30m wall</div><div class="value">{overall.timed_out}<span class="unit">/{overall.valid}</span></div></div>
           <div class="tile"><div class="label">invalidated</div><div class="value">{overall.cheated}</div></div>
         </div>
       </section>

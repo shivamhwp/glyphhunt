@@ -79,6 +79,23 @@ def load_rows():
     return rows
 
 
+def effective_outcome(r):
+    """Normalise the recorded outcome.
+
+    The harness labels a run TimedOut whenever the process was still alive at
+    the wall-clock limit -- even if it had already written a complete
+    answer.json. That conflates "produced nothing before the deadline" with
+    "answered, but slowly", and counting the second as a failure would inflate
+    the failure rate. If an answer parsed, the run gets judged on that answer;
+    the timeout remains visible as its own flag.
+    """
+    if r.get("integrity_violation"):
+        return "Cheated"
+    if (r.get("score") or {}).get("parsed"):
+        return "Scored"
+    return r["outcome"]
+
+
 def agg(rows):
     """Aggregate a set of runs. Cheated runs are excluded from every score."""
     valid = [r for r in rows if not r.get("integrity_violation")]
@@ -87,7 +104,8 @@ def agg(rows):
         "runs": len(rows),
         "valid": n,
         "cheated": sum(1 for r in rows if r.get("integrity_violation")),
-        "failed": sum(1 for r in valid if r["outcome"] != "Scored"),
+        "failed": sum(1 for r in valid if effective_outcome(r) != "Scored"),
+        "timed_out": sum(1 for r in valid if r["outcome"] == "TimedOut"),
         "exact": sum(1 for r in valid if r["score"].get("word_exact")),
         "chars": mean([r["score"].get("chars_correct") for r in valid]),
         "best_chars": max([r["score"].get("chars_correct", 0) for r in valid], default=0),
@@ -183,7 +201,8 @@ def main():
         "runs": [
             {
                 "model": r["model"], "level": r["level"], "mode": r["mode"],
-                "trial": r["trial"], "outcome": r["outcome"],
+                "trial": r["trial"], "outcome": effective_outcome(r),
+                "timed_out": r["outcome"] == "TimedOut",
                 "cheated": bool(r.get("integrity_violation")),
                 "exact": bool(r["score"].get("word_exact")),
                 "chars": r["score"].get("chars_correct", 0),
