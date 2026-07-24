@@ -18,7 +18,8 @@ const { runs, meta } = data as any;
         <div class="panel-sub">
           the answer column shows what the model actually reported, normalised to
           lowercase letters. an invalidated run left its working directory and is
-          excluded from every aggregate on this site.
+          excluded from every aggregate on this site, as is one that died on
+          plan quota — that is a fact about the subscription, not the model.
         </div>
       </div>
       <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>

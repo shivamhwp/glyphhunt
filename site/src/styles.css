@@ -13,12 +13,11 @@
   font-weight: 100 900;
   font-display: swap;
 }
-/* Silkscreen is a genuine bitmap face -- the GeistPixel variants are
-   pixel-derived but render as a smooth geometric sans, which is not the
-   look we want for headings. Caps-only by design. */
+/* Departure Mono: a bitmap face that keeps a true lowercase, so headings
+   read as written instead of being forced into caps. */
 @font-face {
-  font-family: 'Silkscreen';
-  src: url('/fonts/Silkscreen-Regular.woff2') format('woff2');
+  font-family: 'Departure Mono';
+  src: url('/fonts/DepartureMono-Regular.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
@@ -40,7 +39,7 @@
 
   --sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --pixel: 'Silkscreen', 'Geist Mono', monospace;
+  --pixel: 'Departure Mono', 'Geist Mono', monospace;
 }
 
 :root[data-theme='light'] {
@@ -71,7 +70,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.wrap { max-width: 1220px; margin: 0 auto; padding: 26px 20px 80px; }
+.wrap { width: 100%; margin: 0; padding: 24px 28px 80px; }
 
 /* ---- header ---- */
 header {
@@ -81,8 +80,8 @@ header {
 .brand {
   font-family: var(--pixel);
   color: var(--accent);
-  font-size: 17px;
-  letter-spacing: 0.04em;
+  font-size: 21px;
+  letter-spacing: 0.02em;
   text-decoration: none;
 }
 nav { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
@@ -114,15 +113,15 @@ nav .plain { border-color: transparent; }
 }
 .panel-title {
   font-family: var(--pixel);
-  font-size: 13px;
-  letter-spacing: 0.03em;
+  font-size: 16px;
+  letter-spacing: 0.01em;
 }
 .panel-sub { color: var(--dim); font-size: 13px; margin-top: 6px; max-width: 78ch; }
 
 h1.page-title {
   font-family: var(--pixel);
-  font-size: 21px;
-  letter-spacing: 0.03em;
+  font-size: 27px;
+  letter-spacing: 0.01em;
   margin: 0 0 10px;
 }
 .page-lede { color: var(--dim); font-size: 14px; margin: 0 0 24px; max-width: 82ch; }
@@ -148,7 +147,7 @@ h1.page-title {
 .badge.fail { color: var(--fail); border-color: color-mix(in srgb, var(--fail) 45%, transparent); }
 .badge.info { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, transparent); }
 .badge.mute { color: var(--dimmer); }
-.badge.big { font-size: 12px; padding: 13px 18px; font-family: var(--pixel); letter-spacing: 0.03em; }
+.badge.big { font-size: 15px; padding: 12px 18px; font-family: var(--pixel); letter-spacing: 0.01em; }
 
 /* ---- stat tiles ---- */
 .tiles {
@@ -214,17 +213,27 @@ tbody tr.hidden { display: none; }
   -webkit-mask-size: contain; mask-size: contain;
   vertical-align: middle;
 }
-.glyph-lg { height: 54px; }
+.glyph-lg { height: 58px; max-width: 100%; }
 .glyph-sm { height: 26px; }
 
 .wordstrip {
-  display: flex; align-items: flex-end; gap: 14px;
-  flex-wrap: wrap; padding: 22px 4px 6px;
+  /* All 17 glyphs stay on one line: cells share the width evenly and the
+     long face names wrap inside their own cell rather than pushing the
+     row onto a second line. */
+  display: flex; align-items: flex-end; gap: 6px;
+  flex-wrap: nowrap; padding: 20px 0 4px; width: 100%;
 }
-.wordstrip .cell { text-align: center; }
+.wordstrip .cell {
+  flex: 1 1 0; min-width: 0; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+}
 .wordstrip .cell .face {
-  font-family: var(--mono); font-size: 10px; color: var(--dimmer);
-  margin-top: 10px; letter-spacing: 0.02em;
+  font-family: var(--mono); font-size: 9.5px; color: var(--dimmer);
+  margin-top: 9px; letter-spacing: 0; line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .wordstrip .cell .face { display: none; }
 }
 
 .note { color: var(--dim); font-size: 13.5px; line-height: 1.7; }

@@ -8,20 +8,22 @@ export function bar(frac: number, width = 14) {
 
 /** Verdict for a group of runs. `— NO DATA` is distinct from `✗ UNSOLVED`. */
 export function verdict(a: any) {
-  if (!a || a.valid === 0) return { cls: 'mute', text: '— NO DATA' };
-  if (a.exact >= a.valid) return { cls: 'pass', text: '✓ SOLVED' };
-  if (a.exact > 0 || a.chars > 0) return { cls: 'warn', text: '~ PARTIAL' };
-  return { cls: 'fail', text: '✗ UNSOLVED' };
+  if (!a || a.valid === 0) return { cls: 'mute', text: '— no data' };
+  if (a.exact >= a.valid) return { cls: 'pass', text: '✓ solved' };
+  if (a.exact > 0 || a.chars > 0) return { cls: 'warn', text: '~ partial' };
+  return { cls: 'fail', text: '✗ unsolved' };
 }
 
 /** Per-run outcome badge. */
 export function runBadge(r: any) {
-  if (r.cheated) return { cls: 'fail', text: '✗ INVALID' };
-  if (r.exact) return { cls: 'pass', text: '✓ SOLVED' };
+  if (r.cheated) return { cls: 'fail', text: '✗ invalid' };
+  // Plan quota is a fact about the subscription, not the model.
+  if (r.rate_limited) return { cls: 'info', text: '~ quota' };
+  if (r.exact) return { cls: 'pass', text: '✓ solved' };
   // A run that answered is judged on its answer even if the process was still
   // alive at the wall-clock limit; `timed_out` stays visible separately.
-  if (r.outcome !== 'Scored') return { cls: 'mute', text: '— TIMED OUT' };
-  return r.chars > 0 ? { cls: 'warn', text: '~ PARTIAL' } : { cls: 'fail', text: '✗ MISSED' };
+  if (r.outcome !== 'Scored') return { cls: 'mute', text: '— timed out' };
+  return r.chars > 0 ? { cls: 'warn', text: '~ partial' } : { cls: 'fail', text: '✗ missed' };
 }
 
 export const money = (n: number) => (n > 0 ? `$${n.toFixed(2)}` : '—');

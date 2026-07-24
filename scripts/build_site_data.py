@@ -79,6 +79,27 @@ def load_rows():
     return rows
 
 
+RATE_LIMIT_MARKERS = ("session limit", "usage limit", "rate limit", "resets ")
+
+
+def rate_limited(r):
+    """Did this run die because the account ran out of quota?
+
+    A plan limit is a fact about the subscription, not about the model. These
+    runs are excluded from every score rather than counted as failures, and
+    re-run once quota returns.
+    """
+    if r["outcome"] != "Crashed":
+        return False
+    tail = (r.get("final_message_tail") or "").lower()
+    return any(m in tail for m in RATE_LIMIT_MARKERS)
+
+
+def excluded(r):
+    """Runs that say nothing about model ability."""
+    return bool(r.get("integrity_violation")) or rate_limited(r)
+
+
 def effective_outcome(r):
     """Normalise the recorded outcome.
 
@@ -91,6 +112,8 @@ def effective_outcome(r):
     """
     if r.get("integrity_violation"):
         return "Cheated"
+    if rate_limited(r):
+        return "RateLimited"
     if (r.get("score") or {}).get("parsed"):
         return "Scored"
     return r["outcome"]
@@ -98,12 +121,13 @@ def effective_outcome(r):
 
 def agg(rows):
     """Aggregate a set of runs. Cheated runs are excluded from every score."""
-    valid = [r for r in rows if not r.get("integrity_violation")]
+    valid = [r for r in rows if not excluded(r)]
     n = len(valid)
     return {
         "runs": len(rows),
         "valid": n,
         "cheated": sum(1 for r in rows if r.get("integrity_violation")),
+        "rate_limited": sum(1 for r in rows if rate_limited(r)),
         "failed": sum(1 for r in valid if effective_outcome(r) != "Scored"),
         "timed_out": sum(1 for r in valid if r["outcome"] == "TimedOut"),
         "exact": sum(1 for r in valid if r["score"].get("word_exact")),
@@ -145,7 +169,7 @@ def main():
     # Per-typeface: which glyph positions survive, across all valid runs.
     fonts = {}
     for r in rows:
-        if r.get("integrity_violation"):
+        if excluded(r):
             continue
         for p in r["score"].get("positions") or []:
             k = (p["index"], p.get("font") or "?")
@@ -185,6 +209,7 @@ def main():
             "complete": complete,
             "models": len(models),
             "cheated": sum(1 for r in rows if r.get("integrity_violation")),
+        "rate_limited": sum(1 for r in rows if rate_limited(r)),
             "video": {"duration_s": 30, "fps": 60, "frames": 1800, "res": "1920x1080",
                       "glyphs": 17, "typefaces": 17},
         },
@@ -204,6 +229,7 @@ def main():
                 "trial": r["trial"], "outcome": effective_outcome(r),
                 "timed_out": r["outcome"] == "TimedOut",
                 "cheated": bool(r.get("integrity_violation")),
+                "rate_limited": rate_limited(r),
                 "exact": bool(r["score"].get("word_exact")),
                 "chars": r["score"].get("chars_correct", 0),
                 "frames": r["score"].get("frames_correct", 0),
