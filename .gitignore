@@ -1,0 +1,15 @@
+# Downloaded YouTube footage and everything derived from it. Theo's video is
+# his copyright; the repo ships the generator so anyone can rebuild the
+# benchmark locally instead of redistributing his content (and this keeps the
+# repo from carrying ~100MB of video).
+assets/
+videos/
+verification/*.mp4
+
+# Per-run working directories: each holds a copy of the clip plus whatever
+# frames the agent extracted. Tens of GB across a full grid.
+results/runs/
+
+.venv/
+__pycache__/
+benchmark/target/

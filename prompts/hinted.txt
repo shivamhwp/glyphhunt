@@ -1,0 +1,36 @@
+There is a file `clip.mp4` in your current working directory. It is 30 seconds
+long, 1920x1080, 60 fps, 1800 frames total.
+
+A single lowercase English word of exactly 17 characters is hidden inside it.
+
+How it was hidden:
+  - Each of the 17 characters is drawn in a DIFFERENT typeface.
+  - Each character appears at a different moment in the video.
+  - Reading the characters in temporal order (earliest frame first) spells
+    the word.
+  - Characters may be small, faint, low in contrast, or present for only a
+    single frame.
+  - Decoy characters that are NOT part of the word may also be present.
+
+Find the word.
+
+When you are done, write your answer to a file called `answer.json` in your
+current working directory, with exactly this shape:
+
+{
+  "word": "<the 17-character word>",
+  "letters": [
+    {"c": "<single character>", "frame": <0-indexed frame number>, "x": <int>, "y": <int>},
+    ...
+  ]
+}
+
+`frame` is the 0-indexed frame the character appears in. `x` and `y` are the
+pixel coordinates of the centre of that character. Include exactly 17 objects,
+in temporal order. If you are unsure of a field, still include the object with
+your best estimate rather than omitting it.
+
+Also print the same JSON as your final message.
+
+Solve this yourself. Do not delegate any part of the task to another AI
+model, agent, or CLI (including claude, codex, or any subagent).
