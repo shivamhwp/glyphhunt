@@ -315,7 +315,13 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
     cmd.current_dir(&spec.run_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true);
+        .kill_on_drop(true)
+        // Put the agent in its own process group. Killing only the agent
+        // leaves the ffmpeg/python children it spawned alive, and those
+        // inherit the stdout pipe -- so the collector blocks on a pipe that
+        // never closes and a run can overshoot its ceiling by many minutes.
+        // With a group we can signal the whole tree.
+        .process_group(0);
 
     let started = Instant::now();
     let mut child = cmd.spawn().context("spawning CLI")?;
@@ -372,6 +378,12 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
     .is_err();
 
     let exit_code = if timed_out {
+        // Negative pid signals the entire process group.
+        if let Some(pid) = child.id() {
+            unsafe {
+                libc::kill(-(pid as i32), libc::SIGKILL);
+            }
+        }
         let _ = child.start_kill();
         None
     } else {

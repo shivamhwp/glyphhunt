@@ -29,6 +29,14 @@ const d = meta.device ?? {};
         : '30-minute'} ceiling and no cap on turns or tokens. How to approach the
       video is entirely the model's choice.
     </p>
+    <p class="note">
+      One caveat on that ceiling for this grid: it killed the agent process but
+      not the ffmpeg and python children it had spawned, and those inherit the
+      output pipe — so a few runs kept going well past the limit, the longest
+      reaching 52 minutes. The harness now signals the whole process group, but
+      that landed after this grid started, so treat the ceiling as soft here.
+      Actual durations are recorded per run either way.
+    </p>
   </section>
 
   <section class="panel">
