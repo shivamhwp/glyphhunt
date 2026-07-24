@@ -46,6 +46,11 @@ enum Cmd {
     Run {
         #[arg(long, default_value = "3")]
         trials: u32,
+        /// First trial number to emit. Lets a re-run of a lost cell keep its
+        /// real trial index (e.g. --trial-base 2 --trials 1) instead of
+        /// writing a duplicate trial 1.
+        #[arg(long, default_value = "1")]
+        trial_base: u32,
         #[arg(long, default_value = "8")]
         concurrency: usize,
         #[arg(long, default_value = "1,2,3")]
@@ -85,8 +90,8 @@ async fn main() -> Result<()> {
             report::print(&recs);
             Ok(())
         }
-        Cmd::Run { trials, concurrency, levels, modes, only, pass, plain, keep_workdirs } => {
-            run(trials, concurrency, levels, modes, only, pass, plain, keep_workdirs).await
+        Cmd::Run { trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs } => {
+            run(trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs).await
         }
     }
 }
@@ -94,6 +99,7 @@ async fn main() -> Result<()> {
 #[allow(clippy::too_many_arguments)]
 async fn run(
     trials: u32,
+    trial_base: u32,
     concurrency: usize,
     levels: String,
     modes: String,
@@ -129,7 +135,7 @@ async fn run(
 
     // Build the whole work list up front so the progress denominator is real.
     let mut jobs = Vec::new();
-    for trial in 1..=trials {
+    for trial in trial_base..(trial_base + trials) {
         for lvl in &want_levels {
             for mode in &want_modes {
                 for m in &want_models {
