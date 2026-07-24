@@ -152,7 +152,14 @@ def repair(rows, truth):
         r["integrity_violation"] = False
         r["falsely_flagged"] = True
         r["score"] = score(extract_answer(r.get("raw_answer")), truth, r["level"])
-        r["outcome"] = "Scored" if r["score"]["parsed"] else r["outcome"]
+        if r["score"]["parsed"]:
+            r["outcome"] = "Scored"
+        else:
+            # Leaving "Cheated" here would contradict the flag we just cleared.
+            # Cheated took precedence over every other outcome in the harness,
+            # so the original reason is unrecoverable -- infer it from how the
+            # process ended.
+            r["outcome"] = "Crashed" if r.get("exit_code") not in (0, None) else "Unparseable"
         n += 1
     return rows, n
 
