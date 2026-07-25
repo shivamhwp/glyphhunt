@@ -69,6 +69,11 @@ enum Cmd {
         /// Keep each run's extracted frames instead of reclaiming the space.
         #[arg(long)]
         keep_workdirs: bool,
+        /// Skip cells already present in results/runs.jsonl. Lets a grid be
+        /// restarted onto a fixed binary without repeating finished work.
+        /// Cells lost to plan quota are NOT skipped -- those need re-running.
+        #[arg(long)]
+        resume: bool,
     },
     /// Re-print the report from an existing results file.
     Report {
@@ -90,8 +95,8 @@ async fn main() -> Result<()> {
             report::print(&recs);
             Ok(())
         }
-        Cmd::Run { trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs } => {
-            run(trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs).await
+        Cmd::Run { trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs, resume } => {
+            run(trials, trial_base, concurrency, levels, modes, only, pass, plain, keep_workdirs, resume).await
         }
     }
 }
@@ -107,6 +112,7 @@ async fn run(
     pass: String,
     plain: bool,
     keep_workdirs: bool,
+    resume: bool,
 ) -> Result<()> {
     let root = std::env::current_dir()?;
     let gt = Arc::new(GroundTruth::load(&root.join("ground_truth.json"))?);
@@ -133,12 +139,51 @@ async fn run(
         })
         .collect();
 
+    let results_dir = root.join("results");
+    std::fs::create_dir_all(&results_dir)?;
+    let runs_path = results_dir.join("runs.jsonl");
+
+    // Cells already recorded, so a resumed grid does not repeat them. A cell
+    // that died on plan quota is deliberately left out of this set: it holds
+    // no result and must be run again.
+    let mut done: std::collections::HashSet<(String, u8, String, u32)> = Default::default();
+    if resume {
+        let txt = std::fs::read_to_string(&runs_path).unwrap_or_default();
+        for line in txt.lines().filter(|l| !l.trim().is_empty()) {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+            let tail = v.get("final_message_tail").and_then(|t| t.as_str()).unwrap_or("").to_lowercase();
+            let quota = v.get("outcome").and_then(|o| o.as_str()) == Some("Crashed")
+                && ["session limit", "usage limit", "rate limit", "resets "]
+                    .iter()
+                    .any(|m| tail.contains(m));
+            if quota {
+                continue;
+            }
+            let (Some(m), Some(l), Some(md), Some(t)) = (
+                v.get("model").and_then(|x| x.as_str()),
+                v.get("level").and_then(|x| x.as_u64()),
+                v.get("mode").and_then(|x| x.as_str()),
+                v.get("trial").and_then(|x| x.as_u64()),
+            ) else { continue };
+            done.insert((m.to_string(), l as u8, md.to_string(), t as u32));
+        }
+    }
+
     // Build the whole work list up front so the progress denominator is real.
     let mut jobs = Vec::new();
     for trial in trial_base..(trial_base + trials) {
         for lvl in &want_levels {
             for mode in &want_modes {
                 for m in &want_models {
+                    let key = (
+                        m.label.to_string(),
+                        *lvl,
+                        format!("{mode:?}"),
+                        trial,
+                    );
+                    if done.contains(&key) {
+                        continue;
+                    }
                     jobs.push(((*m).clone(), *lvl, *mode, trial));
                 }
             }
@@ -148,9 +193,6 @@ async fn run(
         anyhow::bail!("no jobs -- check --levels/--modes/--only");
     }
 
-    let results_dir = root.join("results");
-    std::fs::create_dir_all(&results_dir)?;
-    let runs_path = results_dir.join("runs.jsonl");
     let sink = Arc::new(Mutex::new(
         std::fs::OpenOptions::new().create(true).append(true).open(&runs_path)?,
     ));
