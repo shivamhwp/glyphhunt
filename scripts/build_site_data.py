@@ -160,6 +160,10 @@ def agg(rows):
 
 def main():
     rows = load_rows()
+    # The 5.5 line was stopped early. Its rows stay in results/runs.jsonl --
+    # nothing is deleted -- but the site shows only the models that ran to
+    # completion, so partial series cannot be mistaken for finished ones.
+    rows = [r for r in rows if r["model"] not in DISCONTINUED]
     # Runs flagged by a marker we have since retired get their real score back
     # from the stored answer, rather than being left zeroed.
     gt_path = ROOT / "ground_truth.json"
@@ -172,8 +176,7 @@ def main():
 
     leaderboard = sorted(
         (
-            {"model": m, "discontinued": m in DISCONTINUED,
-             **agg([r for r in rows if r["model"] == m])}
+            {"model": m, **agg([r for r in rows if r["model"] == m])}
             for m in models
         ),
         key=lambda a: (-(a["exact"] / max(a["valid"], 1)), -a["chars"]),
@@ -234,7 +237,7 @@ def main():
             "device": device_info(),
             "total_runs": len(live_cells),
             "all_rows": len(rows),
-            "discontinued": sorted(DISCONTINUED),
+            "hidden_models": sorted(DISCONTINUED),
             "planned_runs": CONTINUING_MODELS * CELLS_PER_MODEL,
             "complete": complete,
             "models": len(models),
