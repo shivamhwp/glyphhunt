@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Must match config.rs INTEGRITY_MARKERS.
-MARKERS = ("glyphhunt", "ground_truth", "base_montage", "/users/shivam", "developer/t3")
+MARKERS = ("glyphhunt", "ground_truth", "base_montage", "developer/t3")
 
 FRAME_TOLERANCE = 2
 SPATIAL_TOLERANCE_FRAC = 0.05

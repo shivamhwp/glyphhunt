@@ -81,28 +81,21 @@ pub const IDLE_TIMEOUT_SECS: u64 = 600;
 /// the prompt rule and the detector below.
 pub const RUN_ROOT: &str = "/private/tmp/vidtask";
 
-/// Markers that can only appear in an agent's shell history if it left its
-/// working directory and found the benchmark's own source or answers.
-///
-/// Deliberately narrow. Matching on bare filenames like `verify.py` or
-/// `render.py` would flag honest runs -- agents routinely write scratch
-/// scripts by those names -- and matching the target word would flag every
-/// correct answer. These are artifacts that exist only in the project tree,
-/// plus the escape sequence that reaches it from a run directory.
 /// Every marker here names something that exists ONLY in the project tree.
 ///
-/// Earlier versions also matched `_sheet.png`, `_reference.mp4`, `generator/`
-/// and `../../..`. All four were wrong. An agent tiling candidate frames
-/// naturally writes something like `suspect_sheet.png`, and one was flagged
-/// for exactly that despite never leaving its directory. And now that run
-/// directories live under `/private/tmp/vidtask`, a short relative path
-/// cannot reach the project at all -- `../../..` lands in `/private`, so it
-/// signals nothing while flagging agents that merely nest their scratch
-/// directories. Anything that genuinely reaches the project has to name it.
+/// Earlier sets were wrong twice over. `_sheet.png`, `_reference.mp4`,
+/// `generator/` and `../../..` flagged agents for writing their own contact
+/// sheets and nesting scratch directories. Then `/users/shivam` flagged the
+/// Claude harness reading back its own truncated tool output, which it
+/// stores under `~/.claude/projects/...` -- the agent's own work product,
+/// nowhere near the benchmark.
+///
+/// The project lives at `.../Developer/t3/test/glyphhunt`, so any genuine
+/// reference to it contains both `developer/t3` and `glyphhunt`. Matching the
+/// home directory adds no detection and only catches innocents.
 pub const INTEGRITY_MARKERS: &[&str] = &[
     "glyphhunt",
     "ground_truth",
     "base_montage",
-    "/users/shivam",
     "developer/t3",
 ];
