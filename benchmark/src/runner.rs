@@ -193,6 +193,19 @@ fn parse_codex_event(v: &serde_json::Value, out: &mut RunOutput) {
                 }
             }
         }
+        // Codex reports quota exhaustion as an `error` event, not as an agent
+        // message, so without this the record's final message is empty and the
+        // run looks like an ordinary crash -- counting a billing limit against
+        // the model.
+        "error" | "turn.failed" => {
+            let msg = v
+                .get("message")
+                .and_then(|m| m.as_str())
+                .or_else(|| v.pointer("/error/message").and_then(|m| m.as_str()));
+            if let Some(m) = msg {
+                out.final_message = m.to_string();
+            }
+        }
         "turn.completed" => {
             out.behavior.turns += 1;
             if let Some(u) = v.get("usage") {
