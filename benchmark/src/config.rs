@@ -61,6 +61,17 @@ pub const CODEX_HOME_SUFFIX: &str = ".codex-p";
 /// Agentic video work is slow; anything past this is a hang, not a think.
 pub const RUN_TIMEOUT_SECS: u64 = 1800;
 
+/// Kill a run that has emitted no event for this long.
+///
+/// Lowering the hard ceiling to save time would be the wrong trade: observed
+/// solves span 406s to 1751s, so a 20-minute cap would discard a third of
+/// them. Silence is different from slowness. A working agent emits an event
+/// on every shell command, so a long gap means it is stuck, not thinking.
+/// Set at ten minutes rather than five: a high-effort model can reason for
+/// several minutes before its first command, and killing that would lose a
+/// real run. Total silence for ten minutes is unambiguous.
+pub const IDLE_TIMEOUT_SECS: u64 = 600;
+
 /// Run directories live OUTSIDE the project tree, under a neutral name.
 ///
 /// With run dirs at `<project>/results/runs/<id>`, agents walked `../../..`,

@@ -41,6 +41,8 @@ pub struct RunRecord {
     pub integrity_violation: bool,
     pub exit_code: Option<i32>,
     pub wall_ms: u128,
+    /// Killed for going silent rather than for exceeding the ceiling.
+    pub stalled: bool,
     /// Machine load sampled during the run, so a latency number taken under
     /// contention can be identified rather than silently trusted.
     pub load_avg_1m: f32,

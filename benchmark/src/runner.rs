@@ -13,7 +13,9 @@ use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use crate::config::{Harness, ModelCfg, PromptMode, CODEX_HOME_SUFFIX, RUN_TIMEOUT_SECS};
+use crate::config::{
+    Harness, ModelCfg, PromptMode, CODEX_HOME_SUFFIX, IDLE_TIMEOUT_SECS, RUN_TIMEOUT_SECS,
+};
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Behavior {
@@ -51,6 +53,8 @@ pub struct Usage {
 pub struct RunOutput {
     pub exit_code: Option<i32>,
     pub timed_out: bool,
+    /// Killed for emitting nothing at all, rather than for taking too long.
+    pub stalled: bool,
     pub wall_ms: u128,
     pub final_message: String,
     pub answer_json_present: bool,
@@ -343,11 +347,16 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
 
     let events_path = spec.run_dir.join("events.jsonl");
     let harness = spec.cfg.harness;
+    let last_event = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let tick = std::sync::Arc::new(std::time::Instant::now());
 
+    let stamp = last_event.clone();
+    let clock = tick.clone();
     let collector = tokio::spawn(async move {
         let mut out = RunOutput {
             exit_code: None,
             timed_out: false,
+            stalled: false,
             wall_ms: 0,
             final_message: String::new(),
             answer_json_present: false,
@@ -359,6 +368,7 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
         let mut raw = String::new();
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = lines.next_line().await {
+            stamp.store(clock.elapsed().as_secs(), std::sync::atomic::Ordering::Relaxed);
             raw.push_str(&line);
             raw.push('\n');
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) {
@@ -383,12 +393,36 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
         let _ = tokio::fs::write(&err_path, buf).await;
     });
 
+    // Watchdog: kill the process group once the event stream goes quiet.
+    let pid = child.id();
+    let watch_stamp = last_event.clone();
+    let watch_clock = tick.clone();
+    let stalled_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stalled_set = stalled_flag.clone();
+    let watchdog = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            let last = watch_stamp.load(std::sync::atomic::Ordering::Relaxed);
+            if watch_clock.elapsed().as_secs().saturating_sub(last) >= IDLE_TIMEOUT_SECS {
+                stalled_set.store(true, std::sync::atomic::Ordering::Relaxed);
+                if let Some(p) = pid {
+                    unsafe {
+                        libc::kill(-(p as i32), libc::SIGKILL);
+                    }
+                }
+                return;
+            }
+        }
+    });
+
     let timed_out = tokio::time::timeout(
         std::time::Duration::from_secs(RUN_TIMEOUT_SECS),
         child.wait(),
     )
     .await
     .is_err();
+    watchdog.abort();
+    let stalled = stalled_flag.load(std::sync::atomic::Ordering::Relaxed);
 
     let exit_code = if timed_out {
         // Negative pid signals the entire process group.
@@ -406,7 +440,8 @@ pub async fn execute(spec: &RunSpec) -> Result<RunOutput> {
     let mut out = collector.await?;
     let _ = errs.await;
     out.exit_code = exit_code;
-    out.timed_out = timed_out;
+    out.timed_out = timed_out || stalled;
+    out.stalled = stalled;
     out.wall_ms = started.elapsed().as_millis();
 
     // Prefer the file the prompt asked for; fall back to the final message.
