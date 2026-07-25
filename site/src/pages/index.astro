@@ -30,6 +30,9 @@ const levelKeys = Object.keys(by_level).sort();
         <div class="badgerow">
           <span class="badge info">{meta.total_runs}/{meta.planned_runs} runs</span>
           <span class="badge mute">{meta.models} {meta.models === 1 ? 'model' : 'models'}</span>
+          {meta.discontinued && meta.discontinued.length > 0 && (
+            <span class="badge mute">{meta.discontinued.length} stopped early</span>
+          )}
           <span class={`badge ${meta.cheated > 0 ? 'fail' : 'pass'}`}>
             {meta.cheated > 0 ? `✗ ${meta.cheated} invalidated` : '✓ 0 invalidated'}
           </span>
@@ -135,7 +138,10 @@ const levelKeys = Object.keys(by_level).sort();
                 const b = bar(pct(a.chars, 17));
                 return (
                   <tr>
-                    <td class="model">{a.model}</td>
+                    <td class="model">
+                      {a.model}
+                      {a.discontinued && <span class="badge mute" style="margin-left:8px">stopped</span>}
+                    </td>
                     <td class="num" data-v={pct(a.exact, a.valid)}>{a.exact}/{a.valid}</td>
                     <td class="num">{a.chars}</td>
                     <td data-v={a.chars}>

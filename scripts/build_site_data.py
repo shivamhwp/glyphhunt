@@ -19,6 +19,13 @@ from rescore import repair  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "src" / "data" / "results.json"
 
+# The 5.5 line was stopped partway through at the user's request. Its rows
+# are kept and shown, but it is no longer part of the target grid, so the
+# progress denominator counts only the models still running.
+DISCONTINUED = {"gpt-5.5/high", "gpt-5.5/med"}
+CONTINUING_MODELS = 4
+CELLS_PER_MODEL = 18  # 3 levels x 2 modes x 3 trials
+
 LEVEL_NAMES = {
     1: ("L1", "font / OCR robustness", "held ~0.5s, 78px, opaque, amid the footage's own text"),
     2: ("L2", "temporal assembly", "5 frames, 34px, 70% alpha, split across shots, 12 decoys"),
@@ -164,7 +171,11 @@ def main():
     levels = sorted({r["level"] for r in rows})
 
     leaderboard = sorted(
-        ({"model": m, **agg([r for r in rows if r["model"] == m])} for m in models),
+        (
+            {"model": m, "discontinued": m in DISCONTINUED,
+             **agg([r for r in rows if r["model"] == m])}
+            for m in models
+        ),
         key=lambda a: (-(a["exact"] / max(a["valid"], 1)), -a["chars"]),
     )
 
@@ -202,7 +213,13 @@ def main():
         commitment = cp.read_text().split("\n")[0].strip()
 
     gt = ROOT / "ground_truth.json"
-    complete = len(rows) >= 108
+    planned = CONTINUING_MODELS * CELLS_PER_MODEL
+    live_cells = {
+        (r["model"], r["level"], r["mode"], r["trial"])
+        for r in rows
+        if r["model"] not in DISCONTINUED and not excluded(r)
+    }
+    complete = len(live_cells) >= planned
     truth = json.loads(gt.read_text()) if gt.exists() else {}
 
     data = {
@@ -215,8 +232,10 @@ def main():
             "seed": truth.get("seed") if complete else None,
             "machine": f"{platform.machine()} · macOS {platform.mac_ver()[0]}",
             "device": device_info(),
-            "total_runs": len(rows),
-            "planned_runs": 108,
+            "total_runs": len(live_cells),
+            "all_rows": len(rows),
+            "discontinued": sorted(DISCONTINUED),
+            "planned_runs": CONTINUING_MODELS * CELLS_PER_MODEL,
             "complete": complete,
             "models": len(models),
             "cheated": sum(1 for r in rows if r.get("integrity_violation")),
